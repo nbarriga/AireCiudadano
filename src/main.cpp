@@ -84,9 +84,9 @@
 ////////////////////////////////
 
 // Comunicaciones:
-#define Wifi true        // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
+#define Wifi false       // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
 #define WPA2 false       // Set to true to WPA2 enterprise networks (IEEE 802.1X)
-#define Bluetooth false  // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
+#define Bluetooth true   // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
 #define SDyRTC false     // Set to true in case SD card and RTC (Real Time clock) if desired, Wifi and Bluetooth off
 #define SaveSDyRTC false // Set to true in case SD card and RTC (Real Time clock) if desired to save data in Wifi or Bluetooth mode
 
@@ -94,7 +94,7 @@
 #define TwoPMS false     // Set to true if you want 2 PMS7003 sensors
 #define SoundMeter false // set to true for Sound Meter
 #define SoundAM false    // Set to true to Sound meter airplane mode
-#define Influxver true   // Set to true for InfluxDB version SP - Rain - ADXL
+#define Influxver false  // Set to true for InfluxDB version SP - Rain - ADXL
 #define ZH10sen false    // Set to true for ZH10 instead PMSX003
 #define SDS011sen false  // Set to true for SDS011 instead PMSX003
 #define NoxVoxTd false   // Lectura de NoxVox
@@ -102,7 +102,7 @@
 #define LTR390UV false   // LTR390 version
 #define Rain false       // Lectura de pluviometro
 #define ADXL false       // Lectura ADXL345
-#define Nivel true       // Lectura Medidor Nivel por pines Trig - Echo, JSN-SR04M-2
+#define Nivel false      // Lectura Medidor Nivel por pines Trig - Echo, JSN-SR04M-2
 
 // Seleccion de operador de telefonia movil
 #define TigoKalleyExito false
@@ -115,7 +115,7 @@
 #define SIM800 false
 
 // Escoger modelo de pantalla (pasar de false a true) o si no hay escoger ninguna (todas false):
-#define Tdisplaydisp false    // TTGO T Display
+#define Tdisplaydisp true     // TTGO T Display
 #define OLED66display false   // Pantalla OLED 0.66"
 #define OLED96display false   // Pantalla OLED 0.96"
 
