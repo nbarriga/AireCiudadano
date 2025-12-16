@@ -4084,6 +4084,7 @@ void ResetMobDataConn()
 ////////////////////////////////////////////////////////////////////////////////
 
 #if Bluetooth
+
 void Write_Bluetooth()
 { // Write measurements to Bluetooth
 
