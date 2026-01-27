@@ -43,8 +43,7 @@
 //     ADXL345:  inout = 4
 //     Nivel: inout = 5
 // Constantes de Ajuste de sensores programables: pendiente e intercepto. ANALIZAR MAS
-// Verificar nueva libreria Bluetooth que parece compatible con Sensirion UPT Core@^0.3.0, Sigue el error con lectura de nox y en algunos modelos es lento
-// La rutina Button2 falla pero con https://github.com/LennartHennigs/Button2.git#2.3.3 OK, no se porque el sensor viejo falla en eso
+// Opción de Relay para sensor móvil
 
 // Refactorizacion de codigo por bloques:
 // * INIT
@@ -103,6 +102,7 @@
 #define Rain false       // Lectura de pluviometro
 #define ADXL false       // Lectura ADXL345
 #define Nivel false      // Lectura Medidor Nivel por pines Trig - Echo, JSN-SR04M-2
+#define Relay true       // Uso de relevo para sensor móvil
 
 // Seleccion de operador de telefonia movil
 #define TigoKalleyExito false
@@ -562,7 +562,8 @@ PMS::DATA data;
 #endif
 #else
 #define PMS_TX 17 // PMS TX pin
-#define PMS_RX 15 // PMS RX pin
+//#define PMS_RX 15 // PMS RX pin
+#define PMS_RX 33 // PMS RX pin
 #endif
 
 #else     // esTwoPMS test AirGrad
@@ -739,7 +740,12 @@ DataProvider provider(lib, DataType::T_RH_VOC_PM25_V2);
 #endif
 
 #if !ESP8266
+#if !Relay
 #define OUT_EN 26 // Enable del elevador de voltaje
+#else
+#define PinRelayA 15 // Conectado a un lado de la bobina
+#define PinRelayB 13 // Conectado al otro lado
+#endif
 #else
 #define OUT_EN 12 // Enable del elevador de voltaje
 #endif
@@ -1089,9 +1095,30 @@ void setup()
   delay(100);
 #if Tdisplaydisp
   // Out for power on and off sensors
+#if !Relay
   pinMode(OUT_EN, OUTPUT);
   // Off sensors
   digitalWrite(OUT_EN, LOW); // step-up off
+#else
+  // Configurar pines como salida
+  pinMode(PinRelayA, OUTPUT);
+  pinMode(PinRelayB, OUTPUT);
+  delay(100);
+  
+  // Estado inicial: Ambos en LOW (0V) -> Relé en reposo (sin consumo)
+  digitalWrite(PinRelayA, LOW);  // 0V
+  digitalWrite(PinRelayB, HIGH); // 3.3V
+  Serial.println("OFF RELAY");
+  
+  // Pulso corto
+  delay(50);
+  
+  // APAGAR TODO
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+#endif
 
 #if LTR390UV
   pinMode(EnLTR390, OUTPUT);
@@ -1328,7 +1355,25 @@ void setup()
 
 #if Tdisplaydisp
   // On sensors
+#if !Relay
   digitalWrite(OUT_EN, HIGH); // step-up on
+#else
+
+// Flujo de corriente: A -> B
+  Serial.println("ON RELAY!");
+  digitalWrite(PinRelayA, HIGH); // 3.3V
+  digitalWrite(PinRelayB, LOW);  // 0V
+  
+  // Esperar solo lo necesario (el datasheet dice 5-10ms, usamos 50ms por seguridad)
+  delay(50);
+ 
+  // APAGAR TODO (El relé se queda pegado mecánicamente)
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+
+#endif
 
 #if EnLTR390
   digitalWrite(EnLTR390, HIGH); // LTR390 on
@@ -5072,6 +5117,18 @@ void Read_Sensor()
     {
       failpm = 0;
       PM25_value = data.PM_AE_UG_2_5;
+      
+////////////////////// TEMPORAL MODELO PMS en BLUETOOTH      
+//      Serial.print(F("PMS PM2.5 raw: "));
+//      Serial.print(PM25_value);
+//      Serial.print("   ");
+//      PM25_value = ((720 * PM25_value) / 1000);
+//      if (PM25_value < 0) {
+//        PM25_value = 0;
+//      }
+//      Serial.print(F("ADJ "));
+////////////////////////////////
+
       Serial.print(F("PMS PM2.5: "));
       Serial.print(PM25_value);
       Serial.print(F(" ug/m3   "));
@@ -6139,14 +6196,14 @@ void ReadHyT()
     humidity = data.HUMI;
     temperature = data.TEMP;
 
-    if (!isnan(humidity))
+    if (!isnan(humidity) && humidity > 1)
     {
       Serial.print(F("PMSx003T Humi % = "));
       Serial.print(humidity);
       humi = round(humidity);
     }
 
-    if (!isnan(temperature))
+    if (!isnan(temperature) && temperature > 1)
     {
       Serial.print(F("   Temp *C = "));
       Serial.println(temperature);
@@ -7705,7 +7762,23 @@ void Suspend_Device()
   {
     Serial.println(F("Presiona de nuevo el boton para despertar"));
     // Off sensors
+#if !Relay
     digitalWrite(OUT_EN, LOW); // step-up off
+#else
+  digitalWrite(PinRelayA, LOW);  // 0V
+  digitalWrite(PinRelayB, HIGH); // 3.3V
+  Serial.println("OFF RELAY!");
+  
+  // Pulso corto
+  delay(50);
+  
+  // APAGAR TODO
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+
+#endif
 
 #if LTR390UV
     digitalWrite(EnLTR390, LOW); // LTR390 off
@@ -7861,7 +7934,7 @@ void displayAverage(int average)
     tft.drawString("PM2.5. ", 30, 197);
   tft.drawString(String(round(PM25_value), 0), 90, 197);
 
-  if (temp != 0 || humi != 0)
+  if (temp > 1 && humi > 1)
   {
     // Draw temperature
     tft.drawString("T" + String(temp), 60, 220);
