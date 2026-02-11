@@ -83,9 +83,9 @@
 ////////////////////////////////
 
 // Comunicaciones:
-#define Wifi false       // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
+#define Wifi true        // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
 #define WPA2 false       // Set to true to WPA2 enterprise networks (IEEE 802.1X)
-#define Bluetooth true   // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
+#define Bluetooth false  // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
 #define SDyRTC false     // Set to true in case SD card and RTC (Real Time clock) if desired, Wifi and Bluetooth off
 #define SaveSDyRTC false // Set to true in case SD card and RTC (Real Time clock) if desired to save data in Wifi or Bluetooth mode
 
@@ -99,10 +99,10 @@
 #define NoxVoxTd false   // Lectura de NoxVox
 #define LedNeo false     // Set to true for Led Neo multicolor
 #define LTR390UV false   // LTR390 version
-#define Rain false       // Lectura de pluviometro
+#define Rain true        // Lectura de pluviometro
 #define ADXL false       // Lectura ADXL345
 #define Nivel false      // Lectura Medidor Nivel por pines Trig - Echo, JSN-SR04M-2
-#define Relay true       // Uso de relevo para sensor móvil
+#define Relay false      // Uso de relevo para sensor móvil
 
 // Seleccion de operador de telefonia movil
 #define TigoKalleyExito false
@@ -115,7 +115,7 @@
 #define SIM800 false
 
 // Escoger modelo de pantalla (pasar de false a true) o si no hay escoger ninguna (todas false):
-#define Tdisplaydisp true     // TTGO T Display
+#define Tdisplaydisp false    // TTGO T Display
 #define OLED66display false   // Pantalla OLED 0.66"
 #define OLED96display false   // Pantalla OLED 0.96"
 
