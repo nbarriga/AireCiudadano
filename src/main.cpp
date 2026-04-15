@@ -88,46 +88,48 @@
 ////////////////////////////////
 
 // Comunicaciones:
-#define Wifi true        // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
+#define Wifi true        // Set to true in case Wifi if desired, In MobData model must be on, Bluetooth off and SDyRTCsave optional
 #define WPA2 false       // Set to true to WPA2 enterprise networks (IEEE 802.1X)
 #define Bluetooth false  // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
 #define SDyRTC false     // Set to true in case SD card and RTC (Real Time clock) if desired, Wifi and Bluetooth off
 #define SaveSDyRTC false // Set to true in case SD card and RTC (Real Time clock) if desired to save data in Wifi or Bluetooth mode
-#define Influxver true   // Set to true for InfluxDB version SP - Rain - Incli - Nivel
 
-// Opciones para sensores:
+// PM opciones:
 #define TwoPMS false     // Set to true if you want 2 PMS7003 sensors
-#define SoundMeter false // set to true for Sound Meter
-#define SoundAM false    // Set to true to Sound meter airplane mode
 #define ZH10sen false    // Set to true for ZH10 instead PMSX003
 #define SDS011sen false  // Set to true for SDS011 instead PMSX003
 #define NoxVoxTd false   // Lectura de NoxVox
-#define LedNeo false     // Set to true for Led Neo multicolor
-#define LTR390UV false   // LTR390 version
+// Influxver:
+#define Influxver false  // Set to true for InfluxDB version SP - Rain - Incli - Nivel
+#define SoundMeter false // set to true for Sound Meter
+#define SoundAM false    // Set to true to Sound meter airplane mode
 #define Rain false       // Lectura de pluviometro
 #define Incli true       // Lectura de inclinometros
-#define ADXL true        // Lectura ADXL345
-#define LSM9 false       // Lectura LSM9DS1
+#define ADXL false       // Lectura ADXL345
+#define LSM9 true        // Lectura LSM9DS1
 #define Nivel false      // Lectura Medidores de Nivel
 #define NivPin false     // Medidor Nivel ultrasonico por pines Trig - Echo, tipo JSN-SR04M
 #define NivSer false     // Medidor Nivel ultrasonico serial tipo JSN-SR04M
 #define Niv485 false     // Medidor Nivel ultrasonico RS485 SeedStudio
+// Otros:
+#define LTR390UV false   // LTR390 para version ESP32
+#define LedNeo false     // Set to true for Led Neo multicolor
 #define Relay false      // Uso de relevo para sensor móvil
-
-// Seleccion de operador de telefonia movil
-#define TigoKalleyExito false
-#define MovistarVirgin false
-#define Claro false
-#define Wom false
-
-#define A7670 false
-#define SIM7070 false
-#define SIM800 false
 
 // Escoger modelo de pantalla (pasar de false a true) o si no hay escoger ninguna (todas false):
 #define Tdisplaydisp false    // TTGO T Display
 #define OLED66display false   // Pantalla OLED 0.66"
 #define OLED96display false   // Pantalla OLED 0.96"
+
+// MobData: Seleccion de operador de telefonia movil
+#define TigoKalleyExito false
+#define MovistarVirgin false
+#define Claro false
+#define Wom false
+// Seleccion board SIM
+#define A7670 false
+#define SIM7070 false
+#define SIM800 false
 
 // CO2:
 #define CO2sensor false       // Set to true for CO2 sensors: SCD30 and SenseAir S8
@@ -1253,6 +1255,8 @@ void setup()
 
 #endif
 
+#if !ESP8266
+#if (Tdisplaydisp || OLED96display || OLED66display)
 #if Bluetooth
   if (DeepSleepFlag == true)
   {
@@ -1279,6 +1283,8 @@ void setup()
       Suspend_Device();
     }
   }
+#endif
+#endif
 #endif
 
   // print info
@@ -3395,6 +3401,11 @@ void Send_Message_Cloud_App_MQTT()
   float pm251fori;
   float pm252fori;
   float pm11f;
+#if TwoPMS
+  float pm25f;
+  float pm25fori;
+  float pm1f;
+#endif
 #if !ADXL
   float pm12f;                  // Evitar Warning por no uso
 #endif
@@ -3434,9 +3445,7 @@ void Send_Message_Cloud_App_MQTT()
   pm252fori = PM252_accumulated_ori / PM25_samples;    // pitch
   pm252intori = round(pm252fori * 1000.0);
   pm12int = 0;                                  // yaw = 0 = NA
-
 #elif LSM9
-
 // PM251_value = ax
 // PM252_value = ay
 // PM11_value = az
@@ -7170,20 +7179,20 @@ void Aireciudadano_Characteristics()
 
 #endif
 
-  // SPS30sen = 1
+// SPS30sen = 1
   // SEN5Xsen = 2
   // PMSsen = 4
-  // AdjPMS = 8
+  // SDS011sen || ZH10sen = 8
   // SHTsen = 16
   // AM2320sen =32
   // SDflag = 64
   // MobData = 128
   // TDisplay = 256
-  // OLED66 || OLED96 = 512
+  // Minver = 512
   // MaxWifiTX = 1024
   // TwoSensor = 2048
   // AmbInOutdoors (Indoors) = 4096
-  // WPA2 = 8192
+  // Sound = 8192
   // ESP8266 = 16384
   // Rosver = 32768
   // Swver * 65536
@@ -7194,8 +7203,8 @@ void Aireciudadano_Characteristics()
     IDn = IDn + 2;
   if (PMSsen)
     IDn = IDn + 4;
-  //  if (AdjPMS)
-  //    IDn = IDn + 8;
+  if (SDS011sen || ZH10sen)
+    IDn = IDn + 8;
   if (SHTsen)
     IDn = IDn + 16;
   if (AM2320sen)
@@ -7205,23 +7214,21 @@ void Aireciudadano_Characteristics()
 #if SaveSDyRTC
   IDn = IDn + 64;
 #endif
-#if SoundMeter
-  IDn = IDn + 128;
-#endif
+  if (FlagMobData)
+    IDn = IDn + 128;
   if (TDisplay)
     IDn = IDn + 256;
-  if (OLED66 || OLED96)
+#if Minver
     IDn = IDn + 512;
+#endif
   if (MaxWifiTX)
-    IDn = IDn + 1024;
-  if (FlagMobData)
     IDn = IDn + 1024;
 #if TwoPMS
   IDn = IDn + 2048; // Solo para PMS, si se quiere para SEN5X pasarla a var y setearla en codigo
 #endif
   if (AmbInOutdoors)
     IDn = IDn + 4096;
-#if WPA2
+#if SoundMeter
   IDn = IDn + 8192;
 #endif
 #if ESP8266
