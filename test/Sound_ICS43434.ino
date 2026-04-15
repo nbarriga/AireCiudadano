@@ -416,11 +416,13 @@ void setup() {
       {
         timer1 = 1;
         digitalWrite(2, HIGH);
+        Serial.println("HIGH");
       }
       else
       {
         timer1 = 0;
-        digitalWrite(2, LOW);        
+        digitalWrite(2, LOW);
+        Serial.println("LOW");       
       }
 
       // Debug only
