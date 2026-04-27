@@ -104,9 +104,9 @@
 #define SoundMeter false // set to true for Sound Meter
 #define SoundAM false    // Set to true to Sound meter airplane mode
 #define Rain false       // Lectura de pluviometro
-#define Incli true       // Lectura de inclinometros
+#define Incli false      // Lectura de inclinometros
 #define ADXL false       // Lectura ADXL345
-#define LSM9 true        // Lectura LSM9DS1
+#define LSM9 false       // Lectura LSM9DS1
 #define Nivel false      // Lectura Medidores de Nivel
 #define NivPin false     // Medidor Nivel ultrasonico por pines Trig - Echo, tipo JSN-SR04M
 #define NivSer false     // Medidor Nivel ultrasonico serial tipo JSN-SR04M
@@ -1842,15 +1842,15 @@ void loop()
     }
     else
     {
-      // Rutina Test para enviar datos sin sensor conectado
-      /*
+      // Rutina Test para enviar datos sin sensor conectado PM25 fake ESP8266
+      // /*
         PM25_value = random(10, 30);
         PM25_accumulated += PM25_value;
         PM25_samples++;
         Con_loop_times++;
         Serial.print(F("Valor random: "));
         Serial.println(PM25_value);
-      */
+      // */
       Serial.println(F("Medidor No configurado"));
 
 #if (Tdisplaydisp || OLED96display || OLED66display)
@@ -5301,6 +5301,15 @@ void Read_Sensor()
       Serial.println(F("No data by SDS011 sensor!"));
 #else
       Serial.println(F("No data by Plantower sensor!"));
+      // Rutina Test para enviar datos sin sensor conectado PM25 fake ESP32
+      // /*
+        PM25_value = random(10, 30);
+//        PM25_accumulated += PM25_value;
+//        PM25_samples++;
+//        Con_loop_times++;
+        Serial.print(F("Valor random: "));
+        Serial.println(PM25_value);
+      // */
 #endif
 
       if (failpm > 120)
