@@ -2,7 +2,7 @@
 // AireCiudadano medidor Fijo - Medidor de PM2.5 abierto, medición opcional de humedad y temperatura.
 // Más información en: aireciudadano.com
 // Este firmware es un fork del proyecto Anaire (https://www.anaire.org/) recomendado para la medición de CO2.
-// 19/05/2025 info@aireciudadano.com
+// 14/04/2026 info@aireciudadano.com
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 // Novedades:
@@ -37,14 +37,18 @@
 // 25. SDS011 sensor para ESP8266 y ESP32
 // 26. Rain Gauge
 // 27. ADXL345
-// 28. Nivel = JSN-SR04M-2
-// 28. LTR390UV: inout = 2
+// 28. Lectura Nivel con JSN-SR04M-2 por pines
+// 29. LTR390UV: inout = 2
 //     Rain:     inout = 3
-//     ADXL345:  inout = 4
+//     Incli:  inout = 4
 //     Nivel: inout = 5
-// Constantes de Ajuste de sensores programables: pendiente e intercepto. ANALIZAR MAS
-// Verificar nueva libreria Bluetooth que parece compatible con Sensirion UPT Core@^0.3.0, Sigue el error con lectura de nox y en algunos modelos es lento
-// La rutina Button2 falla pero con https://github.com/LennartHennigs/Button2.git#2.3.3 OK, no se porque el sensor viejo falla en eso
+// 30. Constantes de Ajuste de sensores programables: pendiente e intercepto. ANALIZAR MAS
+// 31. Opción de Relay para sensor móvil
+// 32. Lectura del JSN-SR04M-2 serial
+// 33. Ajuste lectura SoundMeter para ESP32 por no borrado de buffer que generaba delays
+// 34. Lectura del Seed Studio RS485 ultrasonic sensor
+// 35. Lectura del LSM9DS1 al mismo rate que el ADXL345
+
 
 // Refactorizacion de codigo por bloques:
 // * INIT
@@ -84,40 +88,48 @@
 ////////////////////////////////
 
 // Comunicaciones:
-#define Wifi true        // Set to true in case Wifi if desired, Bluetooth off and SDyRTCsave optional
+#define Wifi true        // Set to true in case Wifi if desired, In MobData model must be on, Bluetooth off and SDyRTCsave optional
 #define WPA2 false       // Set to true to WPA2 enterprise networks (IEEE 802.1X)
 #define Bluetooth false  // Set to true in case Bluetooth if desired, Wifi off and SDyRTCsave optional
 #define SDyRTC false     // Set to true in case SD card and RTC (Real Time clock) if desired, Wifi and Bluetooth off
 #define SaveSDyRTC false // Set to true in case SD card and RTC (Real Time clock) if desired to save data in Wifi or Bluetooth mode
 
-// Opciones para sensores:
+// PM opciones:
 #define TwoPMS false     // Set to true if you want 2 PMS7003 sensors
-#define SoundMeter false // set to true for Sound Meter
-#define SoundAM false    // Set to true to Sound meter airplane mode
-#define Influxver true   // Set to true for InfluxDB version SP - Rain - ADXL
 #define ZH10sen false    // Set to true for ZH10 instead PMSX003
 #define SDS011sen false  // Set to true for SDS011 instead PMSX003
 #define NoxVoxTd false   // Lectura de NoxVox
-#define LedNeo false     // Set to true for Led Neo multicolor
-#define LTR390UV false   // LTR390 version
+// Influxver:
+#define Influxver true   // Set to true for InfluxDB version SP - Rain - Incli - Nivel
+#define SoundMeter true  // set to true for Sound Meter
+#define SoundAM false    // Set to true to Sound meter airplane mode
 #define Rain false       // Lectura de pluviometro
+#define Incli false      // Lectura de inclinometros
 #define ADXL false       // Lectura ADXL345
-#define Nivel true       // Lectura Medidor Nivel por pines Trig - Echo, JSN-SR04M-2
-
-// Seleccion de operador de telefonia movil
-#define TigoKalleyExito false
-#define MovistarVirgin false
-#define Claro false
-#define Wom false
-
-#define A7670 false
-#define SIM7070 false
-#define SIM800 false
+#define LSM9 false       // Lectura LSM9DS1
+#define Nivel false      // Lectura Medidores de Nivel
+#define NivPin false     // Medidor Nivel ultrasonico por pines Trig - Echo, tipo JSN-SR04M
+#define NivSer false     // Medidor Nivel ultrasonico serial tipo JSN-SR04M
+#define Niv485 false     // Medidor Nivel ultrasonico RS485 SeedStudio
+// Otros:
+#define LTR390UV false   // LTR390 para version ESP32
+#define LedNeo false     // Set to true for Led Neo multicolor
+#define Relay false      // Uso de relevo para sensor móvil
 
 // Escoger modelo de pantalla (pasar de false a true) o si no hay escoger ninguna (todas false):
 #define Tdisplaydisp false    // TTGO T Display
 #define OLED66display false   // Pantalla OLED 0.66"
 #define OLED96display false   // Pantalla OLED 0.96"
+
+// MobData: Seleccion de operador de telefonia movil
+#define TigoKalleyExito false
+#define MovistarVirgin false
+#define Claro false
+#define Wom false
+// Seleccion board SIM
+#define A7670 false
+#define SIM7070 false
+#define SIM800 false
 
 // CO2:
 #define CO2sensor false       // Set to true for CO2 sensors: SCD30 and SenseAir S8
@@ -227,7 +239,7 @@ uint32_t chipId = 0;
 #endif
 
 // device id, automatically filled by concatenating the last three fields of the wifi mac address, removing the ":" in betweeen, in HEX format. Example: ChipId (HEX) = 85e646, ChipId (DEC) = 8775238, macaddress = E0:98:06:85:E6:46
-String sw_version = "2.9";
+String sw_version = "3.0";
 String aireciudadano_device_id;
 uint8_t Swver;
 
@@ -562,7 +574,8 @@ PMS::DATA data;
 #endif
 #else
 #define PMS_TX 17 // PMS TX pin
-#define PMS_RX 15 // PMS RX pin
+//#define PMS_RX 15 // PMS RX pin
+#define PMS_RX 33 // PMS RX pin
 #endif
 
 #else     // esTwoPMS test AirGrad
@@ -692,7 +705,7 @@ byte failh = 0;
 Adafruit_SHT4x sht4 = Adafruit_SHT4x();
 #endif
 
-#if !(Rosver || MinVer || MobData || MinVerSD || SoundMeter || Rain || ADXL || Nivel)
+#if !(Rosver || MinVer || MobData || MinVerSD || SoundMeter || Rain || Incli || Nivel)
 
 #include "Adafruit_Sensor.h"
 #include "Adafruit_AM2320.h"
@@ -739,7 +752,12 @@ DataProvider provider(lib, DataType::T_RH_VOC_PM25_V2);
 #endif
 
 #if !ESP8266
+#if !Relay
 #define OUT_EN 26 // Enable del elevador de voltaje
+#else
+#define PinRelayA 15 // Conectado a un lado de la bobina
+#define PinRelayB 13 // Conectado al otro lado
+#endif
 #else
 #define OUT_EN 12 // Enable del elevador de voltaje
 #endif
@@ -805,7 +823,8 @@ WiFiServer wifi_server(80); // to check if it is alive
 
 // MQTT
 #include <PubSubClient.h>
-char MQTT_message[256];
+// char MQTT_message[256];
+char MQTT_message[512];
 #if !MobData
 PubSubClient MQTT_client(wifi_client);
 #endif
@@ -977,26 +996,87 @@ constexpr float CALIB_OY = 0.00f;
 constexpr float CALIB_OZ = 0.00f;
 
 // Frecuencia y tiempos
-const dataRate_t DATA_RATE = ADXL345_DATARATE_25_HZ; // tasa de muestreo del sensor
-const unsigned long PRINT_PERIOD_MS = 1000;         // imprimir cada 1 segundo
-const unsigned long SENSOR_READ_INTERVAL_MS = 1000 / 25; // ≈ 40 ms (25 Hz)
+const dataRate_t DATA_RATE_ADXL = ADXL345_DATARATE_6_25HZ; // tasa de muestreo del sensor
+const unsigned long SENSOR_ADXL_READ_INTERVAL_MS = 165; // ≈ (6.25 Hz)
 
-const int SENSOR_POWER_PIN = D6; // pin para alimentar el sensor (si lo usas así)
-// ---------------------------------------------------------------------------------------------
+unsigned long sample_count = 0;
+unsigned long last_read_ms = 0;
 
 // Acumuladores para promedio
 float sum_x = 0.0f, sum_y = 0.0f, sum_z = 0.0f;
+
+#endif
+
+#if LSM9
+#include <Wire.h>
+#include <SparkFunLSM9DS1.h>
+
+LSM9DS1 imu;
+
+// ---------------- Parámetros configurables (editar manualmente) ----------------
+// Offsets de calibración del Acelerómetro en m/s^2
+constexpr float CALIB_OX = 0.0f;
+constexpr float CALIB_OY = 0.0f;
+constexpr float CALIB_OZ = 0.0f;
+
+// Offsets de calibración del Magnetómetro en Gauss (Hard Iron Offset)
+constexpr float CALIB_MX = 0.0f;
+constexpr float CALIB_MY = 0.0f;
+constexpr float CALIB_MZ = 0.0f;
+
+// Declinación para Bogotá
+#define DECLINATION -5.5
+
+const unsigned long SENSOR_LMS9_READ_INTERVAL_MS = 100; // 100 ms = 10 Hz
+
+// ---------------- Temporizadores y Frecuencias ----------------
 unsigned long sample_count = 0;
-unsigned long last_print_ms = 0;
 unsigned long last_read_ms = 0;
+
+// ---------------- Acumuladores para el promedio ----------------
+float sum_ax = 0.0f, sum_ay = 0.0f, sum_az = 0.0f;
+float sum_mx = 0.0f, sum_my = 0.0f, sum_mz = 0.0f;
 
 #endif
 
 #if Nivel
 
 #if ESP8266
+#if NivPin
 #define trigPin 12      // D6
 #define echoPin 13      // D7
+
+#elif NivSer
+#include <SoftwareSerial.h>
+#define TXsensor 12      // D6
+// Crear objeto serial (RX, TX)
+SoftwareSerial SensorSerial(TXsensor, 13);
+// --- VARIABLES PARA EL PROMEDIO ---
+unsigned long sumaDistancias = 0;   // Suma acumulada de las distancias
+int conteoLecturas = 0;             // Cuántas lecturas válidas hemos recibido
+unsigned long tiempoUltimaPublicacion = 0;
+const int INTERVALO_PUBLICACION = 1000; // Publicar cada 1000ms (1 segundo)
+
+// Buffer temporal para lectura serial
+unsigned char bufferRX[4];
+
+#elif Niv485
+#include <SoftwareSerial.h>
+// 1. Definición de pines para el ESP8266
+#define RX_PIN D6     // Pin RO del MAX485
+#define TX_PIN D7     // Pin DI del MAX485
+#define RE_DE_PIN D5  // Pines DE y RE unidos en el MAX485
+SoftwareSerial rs485(RX_PIN, TX_PIN);
+
+// Comando Modbus-RTU para leer "Calculated distance"
+byte readDistanceCmd[] = {0x01, 0x03, 0x01, 0x00, 0x00, 0x01, 0x85, 0xF6};
+
+bool esperandoRespuesta = false;
+unsigned long tiempoPeticion = 0; // Guarda el momento en que se preguntas al sensor
+byte response485[7];
+int bytesLeidos = 0;              // Contador de bytes recibidos
+
+#endif
 #else
 #define trigPin 16      // Pendiente de probar en ESP32
 #define echoPin 17      // Pendiente de probar en ESP32
@@ -1089,9 +1169,30 @@ void setup()
   delay(100);
 #if Tdisplaydisp
   // Out for power on and off sensors
+#if !Relay
   pinMode(OUT_EN, OUTPUT);
   // Off sensors
   digitalWrite(OUT_EN, LOW); // step-up off
+#else
+  // Configurar pines como salida
+  pinMode(PinRelayA, OUTPUT);
+  pinMode(PinRelayB, OUTPUT);
+  delay(100);
+  
+  // Estado inicial: Ambos en LOW (0V) -> Relé en reposo (sin consumo)
+  digitalWrite(PinRelayA, LOW);  // 0V
+  digitalWrite(PinRelayB, HIGH); // 3.3V
+  Serial.println("OFF RELAY");
+  
+  // Pulso corto
+  delay(50);
+  
+  // APAGAR TODO
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+#endif
 
 #if LTR390UV
   pinMode(EnLTR390, OUTPUT);
@@ -1154,6 +1255,8 @@ void setup()
 
 #endif
 
+#if !ESP8266
+#if (Tdisplaydisp || OLED96display || OLED66display)
 #if Bluetooth
   if (DeepSleepFlag == true)
   {
@@ -1180,6 +1283,8 @@ void setup()
       Suspend_Device();
     }
   }
+#endif
+#endif
 #endif
 
   // print info
@@ -1328,7 +1433,25 @@ void setup()
 
 #if Tdisplaydisp
   // On sensors
+#if !Relay
   digitalWrite(OUT_EN, HIGH); // step-up on
+#else
+
+// Flujo de corriente: A -> B
+  Serial.println("ON RELAY!");
+  digitalWrite(PinRelayA, HIGH); // 3.3V
+  digitalWrite(PinRelayB, LOW);  // 0V
+  
+  // Esperar solo lo necesario (el datasheet dice 5-10ms, usamos 50ms por seguridad)
+  delay(50);
+ 
+  // APAGAR TODO (El relé se queda pegado mecánicamente)
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+
+#endif
 
 #if EnLTR390
   digitalWrite(EnLTR390, HIGH); // LTR390 on
@@ -1390,6 +1513,10 @@ void setup()
       Connect_WiFi();
       Serial.println("Connect_Wifi");
 
+      #if Influxver
+      Serial.println("Data to InfluxDB platform");
+      #endif
+
       // Attempt to connect to MQTT broker
       if (!err_wifi)
       {
@@ -1446,8 +1573,8 @@ connectstart:
   Setup_UV();
 #elif Rain
   Setup_Rain();
-#elif ADXL
-  Setup_ADXL();
+#elif Incli
+  Setup_Incli();
 #elif Nivel
   Setup_Nivel();
 #else
@@ -1542,7 +1669,7 @@ connectstart:
 #endif
 
   // Get device id
-#if (Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if (Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   IDn = 0;
   Aireciudadano_Characteristics();
 #endif
@@ -1607,8 +1734,16 @@ void loop()
 #endif
 #endif
 
-#if ADXL              // Read 40ms ADXL
-  Read_ADXL();
+#if Incli              // Read 40ms Incli ADXL or LSM9
+  Read_Incli();
+#endif
+
+#if NivSer
+  // FUNCIÓN DE LECTURA CONTINUA
+  Read_Nivel_Ser();
+#elif Niv485
+  // FUNCIÓN DE LECTURA CONTINUA
+  Read_Nivel_485();
 #endif
 
   // Measurement loop 1 seg
@@ -1629,10 +1764,16 @@ void loop()
     Read_SoundMeter();
 #elif LTR390UV
     Read_UV();
-#elif ADXL          // Read 1 second ADXL
-    Read_ADXL_1s();
+#elif Incli          // Read 1 second Incli ADXL or LSM9
+    Read_Incli_1s();
 #elif Nivel
-    Read_Nivel();   // Read 1 second Nivel
+#if NivPin
+    Read_Nivel_Pin();   // Read 1 second Nivel
+#elif NivSer
+    Read_Nivel_Ser_1s();
+#elif Niv485
+    Read_Nivel_485_1s();
+#endif
 #else
     Read_Sensor();
 #endif
@@ -1677,28 +1818,23 @@ void loop()
 #endif
 
         // Accumulates samples
-#if !(TwoPMS || ADXL)
+#if !(TwoPMS || Incli)
         PM25_accumulated += PM25_value;
         PM1_accumulated += PM1_value;
+        PM25_accumulated_ori += PM25_value_ori;
 #else
         PM251_accumulated += PM251_value;
         PM252_accumulated += PM252_value;
+        PM251_accumulated_ori += PM251_value_ori;
+        PM252_accumulated_ori += PM252_value_ori;
         PM11_accumulated += PM11_value;
-#if TwoPMS
         PM12_accumulated += PM12_value;
-#endif
 #endif
 #if SoundAM
         PM25_accumulatedsam += PM25_valuesam;
 #endif
-#if !TwoPMS
-        PM25_accumulated_ori += PM25_value_ori;
-#else
-        PM251_accumulated_ori += PM251_value_ori;
-        PM252_accumulated_ori += PM252_value_ori;
-#endif
         PM25_samples++;
-#if SoundAM
+    #if SoundAM
         SP_samples++;
 #endif
         Con_loop_times++;
@@ -1706,15 +1842,15 @@ void loop()
     }
     else
     {
-      // Rutina Test para enviar datos sin sensor conectado
-      /*
-        PM25_value = random(1, 99);
+      // Rutina Test para enviar datos sin sensor conectado PM25 fake ESP8266
+      // /*
+        PM25_value = random(10, 30);
         PM25_accumulated += PM25_value;
         PM25_samples++;
         Con_loop_times++;
         Serial.print(F("Valor random: "));
         Serial.println(PM25_value);
-      */
+      // */
       Serial.println(F("Medidor No configurado"));
 
 #if (Tdisplaydisp || OLED96display || OLED66display)
@@ -1786,7 +1922,7 @@ void loop()
     Serial.print(pm25int);
     Serial.println(F(" ppm"));
 #elif SoundMeter
-    Serial.print(F("SPL: "));
+    Serial.print(F("SPL frame: "));
     Serial.print(PM25f, 1);
     Serial.print(F(" dBA    Max: "));
     Serial.print(dBAmax, 1);
@@ -1830,7 +1966,7 @@ void loop()
       Serial.print(F("PM2.5: "));
       Serial.print(pm25int);
       Serial.print("   ");
-#if !(SoundMeter || Rain || ADXL || Nivel)
+#if !(SoundMeter || Rain || Incli || Nivel)
       ReadHyT();
 #endif
 #if SDyRTC
@@ -2729,7 +2865,7 @@ void Start_Captive_Portal()
   WiFiManagerParameter custom_wifi_html("<p>Set WPA2 Enterprise</p>"); // only custom html
   WiFiManagerParameter custom_wifi_user("User", "WPA2 Enterprise identity", eepromConfig.wifi_user, 24);
   WiFiManagerParameter custom_wpa2_pass;
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   WiFiManagerParameter custom_wifi_html2("<p></p>"); // only custom html
 #else
   WiFiManagerParameter custom_wifi_html2("<hr><br/>"); // only custom html
@@ -2752,7 +2888,7 @@ void Start_Captive_Portal()
   WiFiManagerParameter custom_id_name("CustomName", "Set Station Name (25 characters max):", eepromConfig.aireciudadano_device_name, 25);
 #endif
 
-#if !(Rosver || SoundMeter || Minver || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || Minver || MinVerSD || Rain || Incli || Nivel)
   char Ptime[5];
   itoa(eepromConfig.PublicTime, Ptime, 10);
   WiFiManagerParameter custom_public_time("Ptime", "Set Publication Time in minutes:", Ptime, 4);
@@ -2760,7 +2896,7 @@ void Start_Captive_Portal()
 #endif
   WiFiManagerParameter custom_sensor_latitude("Latitude", "Latitude (5-4 dec digits are enough)", eepromConfig.sensor_lat, 10);
   WiFiManagerParameter custom_sensor_longitude("Longitude", "Longitude (5-4 dec)", eepromConfig.sensor_lon, 10);
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   WiFiManagerParameter custom_sensorPM_type;
   WiFiManagerParameter custom_sensorHYT_type;
   WiFiManagerParameter custom_display_type;
@@ -2773,7 +2909,7 @@ void Start_Captive_Portal()
 #endif
   WiFiManagerParameter custom_endhtml("<p></p>"); // only custom html
 
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   // Sensor PM menu
 
   if (eepromConfig.ConfigValues[7] == '0')
@@ -2863,7 +2999,7 @@ void Start_Captive_Portal()
 
   // Sensor Location menu
 
-#if !(Rain || ADXL || Nivel)
+#if !(Rain || Incli || Nivel)
   if (eepromConfig.ConfigValues[3] == '0')
   {
     const char *custom_outin_str = "<br/><br/><label for='customOutIn'>Location:</label><br/><input type='radio' name='customOutIn' value='1'> Indoors - sensor measures indoors air<br><input type='radio' name='customOutIn' value='0' checked> Outdoors - sensor measures outdoors air";
@@ -2908,19 +3044,19 @@ void Start_Captive_Portal()
 #endif
 
   wifiManager.addParameter(&custom_id_name);
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   wifiManager.addParameter(&custom_public_time);
   wifiManager.addParameter(&custom_sensor_html);
 #endif
 
   wifiManager.addParameter(&custom_sensor_latitude);
   wifiManager.addParameter(&custom_sensor_longitude);
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   wifiManager.addParameter(&custom_sensorPM_type);
   wifiManager.addParameter(&custom_sensorHYT_type);
   wifiManager.addParameter(&custom_display_type);
 #endif
-#if !(Rain || ADXL || Nivel)
+#if !(Rain || Incli || Nivel)
   wifiManager.addParameter(&custom_outin_type);
 #endif
 #if (Rosver || MinVerSD)
@@ -2977,7 +3113,7 @@ void Start_Captive_Portal()
     eepromConfig.aireciudadano_device_name[sizeof(eepromConfig.aireciudadano_device_name) - 1] = '\0';
     Serial.println(F("Devname write_eeprom = true"));
 
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
     eepromConfig.PublicTime = atoi(custom_public_time.getValue());
     Serial.println(F("PublicTime write_eeprom = true"));
 #endif
@@ -3061,7 +3197,7 @@ void saveParamCallback()
   CustomValtotal = CustomValtotal + (CustomValue * 100);
   Serial.println("Value customSD = " + getParam("customSD"));
   CustomValtotal = CustomValtotal + (CustomValue * 1000);
-#if !(Rain || ADXL || Nivel)
+#if !(Rain || Incli || Nivel)
   Serial.println("Value customOutIn = " + getParam("customOutIn"));
   CustomValtotal = CustomValtotal + (CustomValue * 10000);
 #endif
@@ -3255,24 +3391,24 @@ void MQTT_Reconnect()
 void Send_Message_Cloud_App_MQTT()
 { // Send measurements to the cloud application by MQTT
   // Print info
-#if !ADXL
+#if !(TwoPMS || Incli)
   float pm25f;
   float pm25fori;
   float pm1f;
-#if TwoPMS
-  float pm251f;
-  float pm252f;
-  float pm251fori;
-  float pm252fori;
-  float pm11f;
-  float pm12f;
-#endif
 #else
   float pm251f;
   float pm252f;
   float pm251fori;
   float pm252fori;
   float pm11f;
+#if TwoPMS
+  float pm25f;
+  float pm25fori;
+  float pm1f;
+#endif
+#if !ADXL
+  float pm12f;                  // Evitar Warning por no uso
+#endif
 #endif
   int8_t RSSI = 0;
   int8_t inout;
@@ -3283,26 +3419,54 @@ void Send_Message_Cloud_App_MQTT()
   Serial.print(F("Sending MQTT message to the send topic: "));
   Serial.println(MQTT_send_topic);
 
-#if !(TwoPMS || ADXL)
+#if !(TwoPMS || Incli)
   pm25f = PM25_accumulated / PM25_samples;
   pm25int = round(pm25f);
   pm25fori = PM25_accumulated_ori / PM25_samples;
   pm25intori = round(pm25fori);
   pm1f = PM1_accumulated / PM25_samples;
   pm1int = round(pm1f);
-#elif ADXL
+#elif Incli
+#if ADXL
+// PM251_value = ax
+// PM252_value = ay
+// PM11_value = az
+// PM251_value_ori = roll
+// PM252_value_ori = pitch
+// Las variables se * 1000.0 para que se puedan enviar en formato int
   pm251f = PM251_accumulated / PM25_samples;    // ax
-  pm251int = round(pm251f);
+  pm251int = round(pm251f * 1000.0);
   pm252f = PM252_accumulated / PM25_samples;    // ay
-  pm252int = round(pm252f);
+  pm252int = round(pm252f * 1000.0);
   pm11f = PM11_accumulated / PM25_samples;      // az
-  pm11int = round(pm11f);
-  //  Roll
-  pm251fori  = atan2f(pm252f / 1000, pm11f / 1000) * 180.0f / PI;
-  pm12int = round(pm251fori * 1000);
-  // Pitch
-  pm252fori = atan2f(-pm251f / 1000, sqrtf(pm252f / 1000 * pm252f / 1000 + pm11f / 1000 * pm11f / 1000)) * 180.0f / PI;
-  pm1int = round(pm252fori * 1000);
+  pm11int = round(pm11f * 1000.0);
+  pm251fori = PM251_accumulated_ori / PM25_samples;    // roll
+  pm251intori = round(pm251fori * 1000.0);
+  pm252fori = PM252_accumulated_ori / PM25_samples;    // pitch
+  pm252intori = round(pm252fori * 1000.0);
+  pm12int = 0;                                  // yaw = 0 = NA
+#elif LSM9
+// PM251_value = ax
+// PM252_value = ay
+// PM11_value = az
+// PM251_value_ori = roll
+// PM252_value_ori = pitch
+// PM12_value = yaw
+// Las variables se * 1000.0 para que se puedan enviar en formato int
+  pm251f = PM251_accumulated / PM25_samples;    // ax
+  pm251int = round(pm251f * 1000.0);
+  pm252f = PM252_accumulated / PM25_samples;    // ay
+  pm252int = round(pm252f * 1000.0);
+  pm11f = PM11_accumulated / PM25_samples;      // az
+  pm11int = round(pm11f * 1000.0);
+  pm251fori = PM251_accumulated_ori / PM25_samples;    // roll
+  pm251intori = round(pm251fori * 1000.0);
+  pm252fori = PM252_accumulated_ori / PM25_samples;    // pitch
+  pm252intori = round(pm252fori * 1000.0);
+  pm12f = PM12_accumulated / PM25_samples;      // yaw
+  pm12int = round(pm12f * 1000.0);
+
+#endif
 #else
   pm251f = PM251_accumulated / PM25_samples;
   pm251int = round(pm251f);
@@ -3327,7 +3491,7 @@ void Send_Message_Cloud_App_MQTT()
 #if SoundMeter
   dBAmaxint = round(dBAmax);
 #else
-#if !(Rain || ADXL || Nivel)
+#if !(Rain || Incli || Nivel)
   ReadHyT();
 #endif
 #endif
@@ -3348,7 +3512,7 @@ void Send_Message_Cloud_App_MQTT()
     Serial.println(F(" dBm"));
   }
 
-#if !(LTR390UV || Rain || ADXL || Nivel)
+#if !(LTR390UV || Rain || Incli || Nivel)
   if (AmbInOutdoors)
     inout = 1;
   else
@@ -3357,7 +3521,7 @@ void Send_Message_Cloud_App_MQTT()
   inout = 2;
 #elif Rain
   inout = 3;
-#elif ADXL
+#elif Incli
   inout = 4;
 #elif Nivel
   inout = 5;
@@ -3365,7 +3529,7 @@ void Send_Message_Cloud_App_MQTT()
 
   if (SEN5Xsen == true)
   {
-#if !(Rosver || SoundMeter || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || Rain || Incli || Nivel)
     uint8_t voc;
     uint8_t nox;
 
@@ -3396,20 +3560,20 @@ void Send_Message_Cloud_App_MQTT()
 
 #if !Influxver
     // TEST PARA CONTAR RESET MOBDATA!!!!!!!!!!!!!!!!!
-    //sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
+    //snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
     if (ResetFlagMobDataTemp == true)
     {
       byte temp1 = 1;
-      sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
       ResetFlagMobDataTemp = false;
     }
     else
     {
       byte temp1 = 0;
-      sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, VOC: %d, NOx: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
     }
 #else
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"VOC\": %d, \"NOx\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"VOC\": %d, \"NOx\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, voc, nox, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
 #endif
 #endif
   }
@@ -3424,62 +3588,64 @@ void Send_Message_Cloud_App_MQTT()
     if (ResetFlagMobDataTemp == true)
     {
       byte temp1 = 1;
-      sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
       ResetFlagMobDataTemp = false;
     }
     else
     {
       byte temp1 = 0;
-      sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
     }
 
 #else
-#if !(LTR390UV || Rain || ADXL || Nivel)
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
+#if !(LTR390UV || Rain || Incli || Nivel)
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
 #elif LTR390V
     // inout = 2;
     // pm25int: LTR390 value
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
 #elif Rain
     // inout = 3;
     // pm25int: contadorPulsos
     // pm25intori: pulsosTotal
     // datavar1: lluvia1minInt
     // datavar2: lluviaTotalInt
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d, \"datavar2\": %d}", aireciudadano_device_id.c_str(), contadorPulsos, pulsosTotal, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, lluvia1minInt, lluviaTotalInt); // for Telegraf
-#elif ADXL   // ADXL345
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d, \"datavar2\": %d}", aireciudadano_device_id.c_str(), contadorPulsos, pulsosTotal, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, lluvia1minInt, lluviaTotalInt); // for Telegraf
+#elif Incli   // ADXL345 or LSM9DS1
     // inout = 4;
-    // pm25int: ax X (pm251int)
-    // pm25intori: ay Y (pm252int)
-    // pm1int: az Z (pm11int)
-    // datavar1: roll (pm12int)
-    // datavar2: pitch (pm1int)
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d, \"datavar2\": %d}", aireciudadano_device_id.c_str(), pm251int, pm252int, pm11int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, pm12int, pm1int); // for Telegraf
-#else        // JSN-SR04M-2
+    // PM25 = 0
+    // PM25raw = pm251int = ax
+    // PM251 = pm252int = ay
+    // PM252 = pm11int = az
+    // PM1 = pm251intor = roll
+    // datavar1 = pm252intori = pitch
+    // datavar2 = pm12int = yaw (0 para ADXL345)
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM251\": %d, \"PM252\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d, \"datavar2\": %d}", aireciudadano_device_id.c_str(), 0, pm251int, pm252int, pm11int, pm251intori, humi, temp, RSSI, latitudef, longitudef, inout, IDn, pm252intori, pm12int); // for Telegraf                                                                                                                                                                                                                                                                                     ", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm251int, pm252int, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
+#else         // Nivel
     // inout = 5;
     // pm25int: Nivel en cm
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
 #endif
 #endif
 #else
 #if !Influxver
-    sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM251: %d, PM252: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm251int, pm252int, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
+    snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM251: %d, PM252: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm251int, pm252int, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
 #else
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM251\": %d, \"PM252\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm251int, pm252int, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM251\": %d, \"PM252\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm251int, pm252int, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
 #endif
 #endif
 #else   // Rosver
 #if !Influxver
-    sprintf(MQTT_message, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %llu}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
+    snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %llu}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId);
 #else
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %llu}", pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"datavar1\": %llu}", pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId); // for Telegraf
 #endif
 #endif
 #if SoundMeter
 #if !Influxver
-    sprintf(MQTT_message, "{id: %s, noisedba: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, noisepeak: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxint, chipId);
+    snprintf(MQTT_message, 512, "{id: %s, noisedba: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, noisepeak: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxint, chipId);
 #else
-    sprintf(MQTT_message, "{\"id\": \"%s\", \"noisedba\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"noisepeak\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxint, chipId); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"noisedba\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"noisepeak\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxint, chipId); // for Telegraf
 #endif
 #endif
   }
@@ -3560,9 +3726,9 @@ void Send_Message_Cloud_App_MQTTsam()
     inout = 0;
 
 #if !Influxver
-  sprintf(MQTT_message, "{id: %s, noisedba: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, noisepeak: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxintsam, chipId);
+  snprintf(MQTT_message, 512, "{id: %s, noisedba: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, noisepeak: %d, datavar1: %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxintsam, chipId);
 #else
-  sprintf(MQTT_message, "{\"id\": \"%s\", \"noisedba\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"noisepeak\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxintsam, chipId); // for Telegraf
+  snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"noisedba\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d, \"noisepeak\": %d, \"datavar1\": %d}", aireciudadano_device_id.c_str(), pm25int, RSSI, latitudef, longitudef, inout, IDn, dBAmaxintsam, chipId); // for Telegraf
 #endif
 
   Serial.print(MQTT_message);
@@ -3694,7 +3860,7 @@ void Receive_Message_Cloud_App_MQTT(char *topic, byte *payload, unsigned int len
 
   // CustomSenPM
 
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
 
   tempcustom = ((uint16_t)jsonBuffer["altitude_compensation"]);
   if (tempcustom != 0)
@@ -3710,7 +3876,7 @@ void Receive_Message_Cloud_App_MQTT(char *topic, byte *payload, unsigned int len
 
   // CustomSenHYT OR MaxWifiTX
 
-#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
 
   tempcustom = ((uint16_t)jsonBuffer["FRC_value"]);
 
@@ -3744,7 +3910,7 @@ void Receive_Message_Cloud_App_MQTT(char *topic, byte *payload, unsigned int len
 
   // CustomOutIn
 
-#if !(Rain || ADXL || Nivel)
+#if !(Rain || Incli || Nivel)
   tempcustom = ((uint16_t)jsonBuffer["MQTT_port"]);
 
   if (tempcustom != 0)
@@ -4084,6 +4250,7 @@ void ResetMobDataConn()
 ////////////////////////////////////////////////////////////////////////////////
 
 #if Bluetooth
+
 void Write_Bluetooth()
 { // Write measurements to Bluetooth
 
@@ -4463,7 +4630,7 @@ void Test_Sensor()
 }
 #endif
 
-#if !(SoundMeter || Rain || ADXL || Nivel)
+#if !(SoundMeter || Rain || Incli || Nivel)
 void Setup_Sensor()
 { // Identify and initialize PM25, temperature and humidity sensor
 
@@ -4642,7 +4809,7 @@ void Setup_Sensor()
 #endif
 #endif
 
-#if !(TwoPMS || SoundMeter || Rain || ADXL || Nivel)
+#if !(TwoPMS || SoundMeter || Rain || Incli || Nivel)
     delay(1000);
 
 #if SDS011sen
@@ -4835,7 +5002,7 @@ void Setup_Sensor()
 
 #endif
 
-#if !(SoundMeter || Rain || ADXL || Nivel)
+#if !(SoundMeter || Rain || Incli || Nivel)
 
 void Read_Sensor()
 { // Read PM25, temperature and humidity values
@@ -4969,17 +5136,26 @@ void Read_Sensor()
       PM1_value = massConcentrationPm1p0;
       Serial.print(F(" Humi % = "));
       if (isnan(ambientHumidity))
+      {
         Serial.print(F(" n/a"));
+        humi = 0;
+      }        
       else
+      {
         Serial.print(ambientHumidity);
-      humi = round(ambientHumidity);
-
+        humi = round(ambientHumidity);
+      }
       Serial.print(F("   Temp *C = "));
       if (isnan(ambientTemperature))
+      {
         Serial.print(F(" n/a"));
-      else
+        temp = 0;
+      }
+        else
+      {
         Serial.print(ambientTemperature);
-      temp = round(ambientTemperature);
+        temp = round(ambientTemperature);
+      }
       Serial.print(F("   VocIndex:"));
       if (isnan(vocIndex))
       {
@@ -5071,6 +5247,18 @@ void Read_Sensor()
     {
       failpm = 0;
       PM25_value = data.PM_AE_UG_2_5;
+      
+////////////////////// TEMPORAL MODELO PMS en BLUETOOTH      
+//      Serial.print(F("PMS PM2.5 raw: "));
+//      Serial.print(PM25_value);
+//      Serial.print("   ");
+//      PM25_value = ((720 * PM25_value) / 1000);
+//      if (PM25_value < 0) {
+//        PM25_value = 0;
+//      }
+//      Serial.print(F("ADJ "));
+////////////////////////////////
+
       Serial.print(F("PMS PM2.5: "));
       Serial.print(PM25_value);
       Serial.print(F(" ug/m3   "));
@@ -5113,6 +5301,15 @@ void Read_Sensor()
       Serial.println(F("No data by SDS011 sensor!"));
 #else
       Serial.println(F("No data by Plantower sensor!"));
+      // Rutina Test para enviar datos sin sensor conectado PM25 fake ESP32
+      // /*
+        PM25_value = random(10, 30);
+//        PM25_accumulated += PM25_value;
+//        PM25_samples++;
+//        Con_loop_times++;
+        Serial.print(F("Valor random: "));
+        Serial.println(PM25_value);
+      // */
 #endif
 
       if (failpm > 120)
@@ -5338,6 +5535,7 @@ void Setup_SoundMeter()
   Serial2.begin(9600, SERIAL_8N1, ESP32_RX, 17);
 #else
   Serial2.begin(9600, SERIAL_8N1, ESP32_RX, 25);    // Pin RX 33 para Bluetooth, RX no puede ser pin 17 porque así no funciona Serial2
+  Serial2.setTimeout(50);
 #endif
 #endif
 #else
@@ -5359,14 +5557,18 @@ void Read_SoundMeter()
 #endif
 
 #if !ESP8266
-  if (Serial2.available() != 0)
-  {
-    frame = Serial2.readStringUntil('\n');
-    PM25_value = frame.toFloat();
-    if (PM25_value > 255)
+
+// Solo para el ESP32 porque acumula buffer, Lee TODOS los datos acumulados en el búfer hasta que esté vacío
+    while (Serial2.available() != 0) {
+      frame = Serial2.readStringUntil('\n');
+      PM25_value = frame.toFloat();
+    }
+// Al terminar el 'while', PM25_value tendrá el dato MÁS FRESCO
+    if (PM25_value > 255) 
       PM25_value = 255;
-    if (PM25_value > dBAmax)
+    if (PM25_value > dBAmax) 
       dBAmax = PM25_value;
+    
     Serial.print("SPL: ");
     Serial.print(PM25_value);
     Serial.print(" dBA    ");
@@ -5377,7 +5579,7 @@ void Read_SoundMeter()
 #else
     Serial.print(" dBA    ");
 #endif
-  }
+
 #else
   frame = SerialESP.readStringUntil('\n');
   PM25_value = frame.toFloat();
@@ -5408,10 +5610,6 @@ void Read_SoundMeter()
   Serial.print("Max AM: ");
   Serial.print(dBAmaxsam);
   Serial.println(" dBA");
-
-  //    Serial.print("PM25_valuesam: ");
-  //    Serial.print(PM25_valuesam);
-  //    Serial.println(" dBA");
 
   if (PM25_valuesam > 70)
   {
@@ -5494,7 +5692,6 @@ void Read_UV()
 {
   if (ltr390.newDataAvailable())
   {
-    //    getUVIval = ltr390.getUVI();
     getUVIval = ltr390.getUVI();
     PM25_value = round(getUVIval);
     //    PM25_value = int(getUVIval / 2.7f);
@@ -5505,27 +5702,6 @@ void Read_UV()
     rawUVS = ltr390.readUVS();
     Serial.print("UVraw: ");
     Serial.println(rawUVS);
-
-    /*
-        Serial.print("Gain: ");
-        switch (ltr390.getGain()) {
-          case LTR390_GAIN_1: Serial.println(1); break;
-          case LTR390_GAIN_3: Serial.println(3); break;
-          case LTR390_GAIN_6: Serial.println(6); break;
-          case LTR390_GAIN_9: Serial.println(9); break;
-          case LTR390_GAIN_18: Serial.println(18); break;
-        }
-        Serial.print("Resolution: ");
-        switch (ltr390.getResolution()) {
-          case LTR390_RESOLUTION_13BIT: Serial.println(13); break;
-          case LTR390_RESOLUTION_16BIT: Serial.println(16); break;
-          case LTR390_RESOLUTION_17BIT: Serial.println(17); break;
-          case LTR390_RESOLUTION_18BIT: Serial.println(18); break;
-          case LTR390_RESOLUTION_19BIT: Serial.println(19); break;
-          case LTR390_RESOLUTION_20BIT: Serial.println(20); break;
-        }
-    */
-
   }
   else
     Serial.print("LTR390 not connected");
@@ -5577,27 +5753,21 @@ void Read_Rain()
 
 #endif
 
-#if ADXL
+#if Incli
 
-void Setup_ADXL()
+void Setup_Incli()
 {
+#if ADXL
   Wire.begin();
   delay(100);
 
-  // Power reset opcional del sensor si lo tienes cableado así
-  pinMode(SENSOR_POWER_PIN, OUTPUT);
-  digitalWrite(SENSOR_POWER_PIN, LOW);
-  delay(500);
-  digitalWrite(SENSOR_POWER_PIN, HIGH);
-  delay(500);
-
   if (!accel.begin()) {
     Serial.println("ERROR: Sensor ADXL345 no detectado.");
-    while (1);
   }
-
+  else
+  {
   accel.setRange(ADXL345_RANGE_2_G);
-  accel.setDataRate(DATA_RATE);
+  accel.setDataRate(DATA_RATE_ADXL);
   Serial.println("Inclinómetro ADXL345 encontrado, modo: offsets grabados");
   Serial.println("Offsets precalibrados (m/s^2): ");
   Serial.print("ox: "); Serial.print(CALIB_OX, 2);
@@ -5605,12 +5775,42 @@ void Setup_ADXL()
   Serial.print("  oz: "); Serial.println(CALIB_OZ, 2);
   Serial.println("X(m/s^2)   Y(m/s^2)   Z(m/s^2)   Roll(°)   Pitch(°)");
   Serial.println("X:         Y:         Z:         R:        P:");
-  last_print_ms = millis();
+  }
+
+#elif LSM9
+  Wire.begin();
+  delay(100);
+
+  if (imu.begin() == false) {
+    Serial.println("Error al conectar LSM9DS1");
+  }
+  else {
+  // --- CONFIGURACIÓN DE ULTRA PRECISIÓN (Bajo ODR) ---
+  // 1 = 14.9 Hz (La más baja disponible para este sensor)
+  imu.settings.accel.sampleRate = 1; 
+  imu.settings.gyro.sampleRate = 1;  
+  // 4 = 10 Hz para el Magnetómetro (Suficiente para algo estático)
+  imu.settings.mag.sampleRate = 4;
+
+  Serial.println("Inclinómetro LSM9DS1 encontrado, modo: offsets grabados");
+  Serial.println("Offsets precalibrados (m/s^2): ");
+  Serial.print("ox: "); Serial.print(CALIB_OX, 2);
+  Serial.print("  oy: "); Serial.print(CALIB_OY, 2);
+  Serial.println("  oz: "); Serial.println(CALIB_OZ, 2);
+  Serial.print("mx: "); Serial.print(CALIB_MX, 2);
+  Serial.print("  my: "); Serial.print(CALIB_MY, 2);
+  Serial.println("  mz: "); Serial.println(CALIB_MZ, 2);
+  Serial.println("X(m/s^2)   Y(m/s^2)   Z(m/s^2)   Roll(°)   Pitch(°)   Yaw(°)");
+  Serial.println("X:         Y:         Z:         R:        P:        Y:");  
+  }
+
+#endif
 }
 
-void Read_ADXL()
+void Read_Incli()
 {
-  if (millis() - last_read_ms >= SENSOR_READ_INTERVAL_MS) {
+#if ADXL
+  if (millis() - last_read_ms >= SENSOR_ADXL_READ_INTERVAL_MS) {
     last_read_ms = millis();
 
     sensors_event_t event;
@@ -5621,28 +5821,69 @@ void Read_ADXL()
     sum_y += event.acceleration.y - CALIB_OY;
     sum_z += event.acceleration.z - CALIB_OZ;
     sample_count++;
+
+//// TEST lecturas internas
+//    Serial.print(event.acceleration.x, 2);
+//    Serial.print(" ");
+//    Serial.print(event.acceleration.y, 2);
+//    Serial.print(" ");
+//    Serial.println(event.acceleration.z, 2);
+////
   }
+
+#elif LSM9
+
+  if (millis() - last_read_ms >= SENSOR_LMS9_READ_INTERVAL_MS) {
+    last_read_ms = millis();
+
+    if (imu.accelAvailable()) imu.readAccel();
+    if (imu.magAvailable()) imu.readMag();
+
+    sum_ax += (imu.calcAccel(imu.ax) * 9.80665) - CALIB_OX;
+    sum_ay += (imu.calcAccel(imu.ay) * 9.80665) - CALIB_OY;
+    sum_az += (imu.calcAccel(imu.az) * 9.80665) - CALIB_OZ;
+    sum_mx += imu.calcMag(imu.mx) - CALIB_MX;
+    sum_my += imu.calcMag(imu.my) - CALIB_MY;
+    sum_mz += imu.calcMag(imu.mz) - CALIB_MZ;
+    sample_count++;
+
+//// TEST Lecturas internas
+//    Serial.print(imu.calcAccel(imu.ax) * 9.80665, 2);
+//    Serial.print(" ");
+//    Serial.print(imu.calcAccel(imu.ay) * 9.80665, 2);
+//    Serial.print(" ");
+//    Serial.println(imu.calcAccel(imu.az) * 9.80665, 2);
+////
+  }
+
+#endif
 }
 
-void Read_ADXL_1s()
+void Read_Incli_1s()
 {
+#if ADXL
+
+// PM251_value = ax
+// PM252_value = ay
+// PM11_value = az
+// PM251_value_ori = roll
+// PM252_value_ori = pitch
+// PM12_value
   if (sample_count > 0) {
-    float ax = sum_x / sample_count;
-    float ay = sum_y / sample_count;
-    float az = sum_z / sample_count;
+    PM251_value = sum_x / sample_count;
+    PM252_value = sum_y / sample_count;
+    PM11_value = sum_z / sample_count;
 
-    PM251_value = (int)(ax * 1000.0);
-    PM252_value = (int)(ay * 1000.0);
-    PM11_value = (int)(az * 1000.0);
+//    float roll  = atan2f(ay, az) * 180.0f / PI;
+    PM251_value_ori  = atan2f(PM252_value, PM11_value) * 180.0f / PI;
+//    float pitch = atan2f(-ax, sqrtf(ay * ay + az * az)) * 180.0f / PI;
+    PM252_value_ori = atan2f(-PM251_value, sqrtf(PM252_value * PM252_value + PM11_value * PM11_value)) * 180.0f / PI;
 
-    float roll  = atan2f(ay, az) * 180.0f / PI;
-    float pitch = atan2f(-ax, sqrtf(ay * ay + az * az)) * 180.0f / PI;
-
-    Serial.print("X: "); Serial.print(ax, 2);
-    Serial.print("   Y: "); Serial.print(ay, 2);
-    Serial.print("   Z: "); Serial.print(az, 2);
-    Serial.print("   R: "); Serial.print(roll, 2);
-    Serial.print("   P: "); Serial.println(pitch, 2);
+    Serial.print("X: "); Serial.print(PM251_value, 2);
+    Serial.print("   Y: "); Serial.print(PM252_value, 2);
+    Serial.print("   Z: "); Serial.print(PM11_value, 2);
+    Serial.print("   R: "); Serial.print(PM251_value_ori, 2);
+    Serial.print("   P: "); Serial.println(PM252_value_ori, 2);
   } else {
     Serial.println("No hay muestras (sample_count == 0)");
   }
@@ -5650,15 +5891,69 @@ void Read_ADXL_1s()
   // Reset acumuladores
   sum_x = sum_y = sum_z = 0.0f;
   sample_count = 0;
-  last_print_ms = millis();
+  last_read_ms = millis();
+
+#elif LSM9
+
+// PM251_value = ax
+// PM252_value = ay
+// PM11_value = az
+// PM251_value_ori = roll
+// PM252_value_ori = pitch
+// PM12_value = yaw
+
+  if (sample_count > 0) {
+    PM251_value = sum_ax / sample_count;
+    PM252_value = sum_ay / sample_count;
+    PM11_value = sum_az / sample_count;
+    float mx_avg = -sum_my / sample_count; // Ejes cruzados para SparkFun
+    float my_avg = -sum_mx / sample_count;
+    float mz_avg = sum_mz / sample_count;
+
+// Cálculo de inclinación de alta precisión
+//    float rollRad = atan2(ay, az);
+    float rollRad = atan2(PM252_value, PM11_value);
+//    float pitchRad = atan2(-ax, sqrt(ay * ay + az * az));
+    float pitchRad = atan2(-PM251_value, sqrt(PM252_value * PM252_value + PM11_value * PM11_value));
+
+// Yaw con compensación de inclinación
+    float Xh = mx_avg * cos(pitchRad) + my_avg * sin(rollRad) * sin(pitchRad) + mz_avg * cos(rollRad) * sin(pitchRad);
+    float Yh = my_avg * cos(rollRad) - mz_avg * sin(rollRad);
+    float heading = atan2(Yh, Xh) - (DECLINATION * PI / 180.0);
+
+// Normalización y conversión
+    if (heading > PI) heading -= (2 * PI);
+    else if (heading < -PI) heading += (2 * PI);
+      
+    PM251_value_ori = rollRad * 180.0 / PI;
+    PM252_value_ori = pitchRad * 180.0 / PI;
+    PM12_value = heading * 180.0 / PI;
+    if (PM12_value < 0) PM12_value += 360;
+
+    Serial.print("X: "); Serial.print(PM251_value, 2);
+    Serial.print("   Y: "); Serial.print(PM252_value, 2);
+    Serial.print("   Z: "); Serial.print(PM11_value, 2);
+    Serial.print("   R: "); Serial.print(PM251_value_ori, 2);
+    Serial.print("   P: "); Serial.print(PM252_value_ori, 2);
+    Serial.print("   Y: "); Serial.println(PM12_value, 2);
+  } else {
+    Serial.println("No hay muestras (sample_count == 0)");
+  }
+
+  // Reset
+  sum_ax = sum_ay = sum_az = sum_mx = sum_my = sum_mz = 0;
+  sample_count = 0;
+  last_read_ms = millis();
+
+#endif
 }
 
 #endif
 
 #if Nivel
 
-void Setup_Nivel()
-{
+void Setup_Nivel(){
+#if NivPin
   pinMode(trigPin, OUTPUT);
   digitalWrite(trigPin, HIGH);  // CRÍTICO: Mantener en LOW entre lecturas
   pinMode(echoPin, INPUT);
@@ -5670,15 +5965,137 @@ void Setup_Nivel()
     historico[i] = -1;
   }
   Serial.println("Filtro anti-outliers activado");
+#elif NivSer
+  SensorSerial.begin(9600);
+  Serial.println("Iniciando sensor JSN-SR04T Serial");
+#elif Niv485
+  rs485.begin(9600); // Baud rate por defecto del sensor [cite: 64]   
+  pinMode(RE_DE_PIN, OUTPUT);
+  digitalWrite(RE_DE_PIN, LOW); // Iniciar en modo "Escuchar"
+  Serial.println("Iniciando sensor Seed Studio RS485");
+#endif
 }
 
-void Read_Nivel()
+#if NivSer
+
+void Read_Nivel_Ser() {
+  // Mientras haya al menos 4 bytes (un paquete completo) en el buffer...
+  while (SensorSerial.available() >= 4) {
+    // Verificamos cabecera
+    if (SensorSerial.peek() != 0xFF) {
+      SensorSerial.read(); // Si el primero no es 0xFF, es basura, lo tiramos y reintentamos
+      continue;
+    }
+
+    // Leemos los 4 bytes del paquete
+    bufferRX[0] = SensorSerial.read(); // 0xFF
+    bufferRX[1] = SensorSerial.read(); // High Byte
+    bufferRX[2] = SensorSerial.read(); // Low Byte
+    bufferRX[3] = SensorSerial.read(); // Checksum
+
+    // Verificación de Checksum
+    unsigned char sum = (bufferRX[0] + bufferRX[1] + bufferRX[2]) & 0xFF;
+
+    if (sum == bufferRX[3]) {
+      // Cálculo de distancia
+      int distancia = (bufferRX[1] << 8) | bufferRX[2];
+      // FILTRO: Solo aceptamos distancias válidas (> 0 y < rango máximo lógico)
+      // El sensor envía 0 cuando falla o está fuera de rango. No queremos promediar ceros.
+      if (distancia > 200) { 
+        sumaDistancias += distancia;
+        conteoLecturas++;
+        // Opcional: Descomenta para ver cada lectura individual (muy rápido)
+        //Serial.print("Distancia: ");
+        //Serial.print(distancia);
+        //Serial.println(" mm");
+        //Serial.print("   ");
+      }
+    } else {
+      // Si falla el checksum, vaciamos buffer para resincronizar
+      while(SensorSerial.available()) SensorSerial.read();
+    }
+  }
+}
+
+void Read_Nivel_Ser_1s() {
+  if (conteoLecturas > 0) {
+    // Calculamos el promedio
+    int promedio = sumaDistancias / conteoLecturas;   
+    Serial.print("Distancia media (mm): ");
+    Serial.println(promedio);
+//    Serial.print(" mm, Muestras: ");
+//    Serial.println(conteoLecturas);
+    PM25_value = promedio;    
+  } else {
+    Serial.println("Advertencia: No se obtuvieron lecturas válidas este segundo (Sensor desconectado o zona ciega).");
+  }
+    sumaDistancias = 0;
+    conteoLecturas = 0;
+}
+
+#elif Niv485
+
+void Read_Nivel_485() {
+  // LA ESCUCHA (Se ejecuta en cada ciclo del loop, sin bloquear)
+  if (esperandoRespuesta) {
+    // Si hay datos llegando por el puerto serie RS485...
+    while (rs485.available() > 0 && bytesLeidos < 7) {
+      response485[bytesLeidos] = rs485.read();
+      bytesLeidos++;
+    }
+
+    // Si ya recibimos los 7 bytes completos que conforman la respuesta [cite: 69]
+    if (bytesLeidos == 7) {
+      // Validar que la respuesta sea para nosotros (Address 0x01, Función 0x03, 2 Bytes de datos)
+      if (response485[0] == 0x01 && response485[1] == 0x03 && response485[2] == 0x02) {
+        // Unir los dos bytes de datos (Alto y Bajo) [cite: 78]
+        int distance_mm = (response485[3] << 8) | response485[4];
+        
+        Serial.print("Distancia: ");
+        Serial.print(distance_mm);
+        Serial.println(" mm");
+        PM25_value = distance_mm;
+      } else {
+        Serial.println("Error: Trama de datos Modbus incorrecta.");
+      }
+      esperandoRespuesta = false; // Terminamos, liberamos el estado
+    } 
+    // Si ha pasado mucho tiempo (ej. 700ms) y no responde, declaramos Timeout
+    // (El manual dice que tarda ~500ms, damos 200ms extra de margen) 
+    else if ((millis() - tiempoPeticion) > 700) {
+      Serial.println("Error: Timeout. El sensor no respondió a tiempo.");
+      esperandoRespuesta = false; // Liberamos el estado para que pueda volver a intentar
+      bytesLeidos = 0;
+    }
+  }
+}
+
+void Read_Nivel_485_1s() {
+  // Solo enviamos la petición si no estamos ya esperando una
+  if (!esperandoRespuesta) {
+    digitalWrite(RE_DE_PIN, HIGH); // Modo Transmisión
+    delay(2); // Una micro-pausa necesaria para que el MAX485 cambie de estado
+    
+    rs485.write(readDistanceCmd, sizeof(readDistanceCmd));
+    rs485.flush(); // Esperamos a que salga el último bit físicamente
+    
+    digitalWrite(RE_DE_PIN, LOW); // Volvemos a modo Recepción inmediatamente
+    
+    esperandoRespuesta = true; // Cambiamos el estado
+    tiempoPeticion = millis(); // Registramos a qué hora hicimos la pregunta
+    bytesLeidos = 0;           // Reiniciamos el contador de bytes
+  }
+}
+
+#elif NivPin
+
+void Read_Nivel_Pin()
 {
   // Hacer la lectura
   LeerNivel();
 
   // Validación básica de rango
-  bool dentroRango = (distance >= 2 && distance <= 600);
+  bool dentroRango = (distance >= 200 && distance <= 50000);
 
   // Validación avanzada: detectar outliers
   bool esOutlier = false;
@@ -5689,7 +6106,7 @@ void Read_Nivel()
   // Mostrar lectura
   Serial.print("Distancia: ");
   Serial.print(distance);
-  Serial.print(" cm");
+  Serial.print(" mm");
 
   if (!dentroRango) {
     Serial.println(" (inválida)");
@@ -5717,7 +6134,7 @@ void Read_Nivel()
 
         Serial.print(" SI → ");
         Serial.print(distance);
-        Serial.print(" cm)");
+        Serial.print(" mm)");
 
         PM25_value = distance;
         vecesRechazadaSimilar = 0;
@@ -5794,7 +6211,8 @@ void LeerNivel() {
 
     // Si obtenemos una lectura válida, calcular y salir
     if (duration > 0) {
-      distance = duration * 0.0343 / 2;  // Codigo Recomendado en todo lado
+//      distance = duration * 0.0343 / 2;  // Codigo Recomendado en todo lado
+      distance = duration * 0.343 / 2;  // Codigo medir mm
 
       // Mostrar intentos si fue necesario reintentar
       //      if (intentos > 0) {
@@ -5814,6 +6232,7 @@ void LeerNivel() {
   distance = -1;
   //  Serial.print("5Re_");
 }
+#endif
 
 #endif
 
@@ -6003,7 +6422,7 @@ void printSerialNumber()
 
 #endif
 
-#if !(SoundMeter || Rain || ADXL || Nivel)
+#if !(SoundMeter || Rain || Incli || Nivel)
 
 void ReadHyT()
 {
@@ -6138,14 +6557,14 @@ void ReadHyT()
     humidity = data.HUMI;
     temperature = data.TEMP;
 
-    if (!isnan(humidity))
+    if (!isnan(humidity) && humidity > 1)
     {
       Serial.print(F("PMSx003T Humi % = "));
       Serial.print(humidity);
       humi = round(humidity);
     }
 
-    if (!isnan(temperature))
+    if (!isnan(temperature) && temperature > 1)
     {
       Serial.print(F("   Temp *C = "));
       Serial.println(temperature);
@@ -6318,7 +6737,7 @@ void Get_AireCiudadano_DeviceId()
 void Aireciudadano_Characteristics()
 {
 #if !Bluetooth
-#if !(Rosver || SoundMeter || MinVer || MobData || MinVerSD || LTR390UV || Rain || ADXL || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MobData || MinVerSD || LTR390UV || Rain || Incli || Nivel)
   Serial.print(F("eepromConfig.ConfigValues: "));
   Serial.println(eepromConfig.ConfigValues);
 
@@ -6638,8 +7057,8 @@ void Aireciudadano_Characteristics()
   Serial.println(F("NO Mobile Data mode"));
 #endif
 
-#else // SoundMeter & LTR390UV & Rain & ADXL & Nivel
-#if !(LTR390UV || Rain || ADXL || Nivel)
+#else // SoundMeter & LTR390UV & Rain & Incli & Nivel
+#if !(LTR390UV || Rain || Incli || Nivel)
   Serial.print(F("eepromConfig.ConfigValues: "));
   Serial.println(eepromConfig.ConfigValues);
   Serial.print(F("eepromConfig.ConfigValues[3]: "));
@@ -6708,10 +7127,15 @@ void Aireciudadano_Characteristics()
     MaxWifiTX = true;
     Serial.println(F("MaxWifiTX activated"));
   }
+#if NivPin
+  Serial.println("Level sensor Trigger - JSN-SR04");
+#elif NivSer
+  Serial.println("Level sensor Serial - JSN-SR04T-V3.3");
+#elif Niv485
+  Serial.println("Level sensor Seed Studio RS485");
+#endif
 
-  Serial.println("Level sensor - JSN-SR04M-2");
-
-#elif ADXL
+#elif Incli
   Serial.print(F("eepromConfig.ConfigValues: "));
   Serial.println(eepromConfig.ConfigValues);
 
@@ -6729,7 +7153,11 @@ void Aireciudadano_Characteristics()
     Serial.println(F("MaxWifiTX activated"));
   }
 
+#if ADXL
   Serial.println("ADXL345 sensor");
+#elif LSM9
+  Serial.println("LSM9DS1 sensor");
+#endif
 
 #else
   Serial.print(F("eepromConfig.ConfigValues: "));
@@ -6760,20 +7188,20 @@ void Aireciudadano_Characteristics()
 
 #endif
 
-  // SPS30sen = 1
+// SPS30sen = 1
   // SEN5Xsen = 2
   // PMSsen = 4
-  // AdjPMS = 8
+  // SDS011sen || ZH10sen = 8
   // SHTsen = 16
   // AM2320sen =32
   // SDflag = 64
   // MobData = 128
   // TDisplay = 256
-  // OLED66 || OLED96 = 512
+  // Minver = 512
   // MaxWifiTX = 1024
   // TwoSensor = 2048
   // AmbInOutdoors (Indoors) = 4096
-  // WPA2 = 8192
+  // Sound = 8192
   // ESP8266 = 16384
   // Rosver = 32768
   // Swver * 65536
@@ -6784,8 +7212,8 @@ void Aireciudadano_Characteristics()
     IDn = IDn + 2;
   if (PMSsen)
     IDn = IDn + 4;
-  //  if (AdjPMS)
-  //    IDn = IDn + 8;
+  if (SDS011sen || ZH10sen)
+    IDn = IDn + 8;
   if (SHTsen)
     IDn = IDn + 16;
   if (AM2320sen)
@@ -6795,23 +7223,21 @@ void Aireciudadano_Characteristics()
 #if SaveSDyRTC
   IDn = IDn + 64;
 #endif
-#if SoundMeter
-  IDn = IDn + 128;
-#endif
+  if (FlagMobData)
+    IDn = IDn + 128;
   if (TDisplay)
     IDn = IDn + 256;
-  if (OLED66 || OLED96)
+#if Minver
     IDn = IDn + 512;
+#endif
   if (MaxWifiTX)
-    IDn = IDn + 1024;
-  if (FlagMobData)
     IDn = IDn + 1024;
 #if TwoPMS
   IDn = IDn + 2048; // Solo para PMS, si se quiere para SEN5X pasarla a var y setearla en codigo
 #endif
   if (AmbInOutdoors)
     IDn = IDn + 4096;
-#if WPA2
+#if SoundMeter
   IDn = IDn + 8192;
 #endif
 #if ESP8266
@@ -6958,12 +7384,25 @@ void Firmware_Update()
 #elif Rain
   Serial.println("Firmware Rain");
   t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIRain.bin");
-#elif ADXL
+#elif Incli
+#if ADXL
   Serial.println("Firmware ADXL345");
-  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIADXL.bin");
+  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIIncliADXL.bin");
+#elif LSM9
+  Serial.println("Firmware LSM9DS1");
+  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIIncliLSM9.bin");
+#endif
 #elif Nivel
-  Serial.println("Firmware Nivel - JSN-SR04M-2");
-  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WINivelJSN.bin");
+#if NivPin
+  Serial.println("Firmware Nivel - Pin");
+  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WINivelPin.bin");
+#elif NivSer
+  Serial.println("Firmware Nivel - Serial");
+  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WINivelSerial.bin");
+#elif Niv485
+  Serial.println("Firmware Nivel - RS485");
+  t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WINivel485.bin");
+#endif
 #elif Minver
   Serial.println("Firmware MinVer");
   t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIMV.bin");
@@ -7104,12 +7543,25 @@ void Firmware_Update()
 #elif Rain
   Serial.println("Firmware ESP8266WI_Rain_InfluxDB");
   t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WIRainInfluxDB.bin");
-#elif ADXL
+#elif Incli
+#if ADXL
   Serial.println("Firmware ESP8266WI_ADXL_InfluxDB");
   t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WIADXLInfluxDB.bin");
+#elif LSM9
+  Serial.println("Firmware ESP8266WI_LSM9_InfluxDB");
+  t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WILSM9InfluxDB.bin");
+#endif
 #elif Nivel
-  Serial.println("Firmware ESP8266WI_Nivel_JSN_InfluxDB");
-  t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WINivelJSNInfluxDB.bin");
+#if NivPin
+  Serial.println("Firmware ESP8266WI_Nivel_Pin_InfluxDB");
+  t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WINivelPinInfluxDB.bin");
+#elif NivSer
+  Serial.println("Firmware ESP8266WI_Nivel_Serial_InfluxDB");
+  t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WINivelSerialInfluxDB.bin");
+#elif Niv485
+  Serial.println("Firmware ESP8266WI_Nivel_RS485_InfluxDB");
+  t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WINivelRS485InfluxDB.bin");
+#endif
 #else
   Serial.println("Firmware ESP8266WIFI");
   t_httpUpdate_return ret = ESPhttpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/ESP8266WI.bin");
@@ -7704,7 +8156,23 @@ void Suspend_Device()
   {
     Serial.println(F("Presiona de nuevo el boton para despertar"));
     // Off sensors
+#if !Relay
     digitalWrite(OUT_EN, LOW); // step-up off
+#else
+  digitalWrite(PinRelayA, LOW);  // 0V
+  digitalWrite(PinRelayB, HIGH); // 3.3V
+  Serial.println("OFF RELAY!");
+  
+  // Pulso corto
+  delay(50);
+  
+  // APAGAR TODO
+  digitalWrite(PinRelayA, LOW);
+  digitalWrite(PinRelayB, LOW);
+
+  delay(500);
+
+#endif
 
 #if LTR390UV
     digitalWrite(EnLTR390, LOW); // LTR390 off
@@ -7860,7 +8328,7 @@ void displayAverage(int average)
     tft.drawString("PM2.5. ", 30, 197);
   tft.drawString(String(round(PM25_value), 0), 90, 197);
 
-  if (temp != 0 || humi != 0)
+  if (temp > 1 && temp < 200 && humi > 1 && humi < 101)       //////// Revisar temp negativas
   {
     // Draw temperature
     tft.drawString("T" + String(temp), 60, 220);
