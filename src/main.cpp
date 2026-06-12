@@ -257,9 +257,9 @@ struct MyConfigStruct
   char aireciudadano_device_name[30]; // Device name; default to aireciudadano_device_id
 #elif Wifi
 #if !MobData
-  uint16_t PublicTime = 1; // Publication Time
+  uint16_t PublicTime = 5; // Publication Time
 #else
-  uint16_t PublicTime = 2; // Publication Time
+  uint16_t PublicTime = 5; // Publication Time
 #endif
   //  uint16_t MQTT_port = 80;                           // MQTT port; Default Port on 80
   //  char MQTT_server[30] = "sensor.aireciudadano.com"; // MQTT server url or public IP address.
@@ -326,6 +326,10 @@ float PM12_value = 0;
 float PM1_accumulated = 0;
 float PM11_accumulated = 0;
 float PM12_accumulated = 0;
+float PM4_value = 0;           // PM4 measured value
+float PM10_value = 0;          // PM10 measured value
+float PM4_accumulated = 0;
+float PM10_accumulated = 0;
 float temperature;    // Read temperature as Celsius
 float humidity;       // Read humidity in %
 int PM25_samples = 0; // Counts de number of samples for a MQTT period
@@ -339,6 +343,8 @@ int pm252intori;
 int pm1int;
 int pm11int;
 int pm12int;
+int pm4int;
+int pm10int;
 float dBAmax = 0;
 float dBAmaxsam = 0;
 
@@ -1821,6 +1827,8 @@ void loop()
 #if !(TwoPMS || Incli)
         PM25_accumulated += PM25_value;
         PM1_accumulated += PM1_value;
+        PM4_accumulated += PM4_value;
+        PM10_accumulated += PM10_value;
         PM25_accumulated_ori += PM25_value_ori;
 #else
         PM251_accumulated += PM251_value;
@@ -2022,6 +2030,8 @@ void loop()
       PM1_accumulated = 0.0;
       PM11_accumulated = 0.0;
       PM12_accumulated = 0.0;
+      PM4_accumulated = 0.0;
+      PM10_accumulated = 0.0;
       PM25_samples = 0.0;
       dBAmax = 0.0;
     }
@@ -2090,6 +2100,8 @@ void loop()
       PM1_accumulated = 0.0;
       PM11_accumulated = 0.0;
       PM12_accumulated = 0.0;
+      PM4_accumulated = 0.0;
+      PM10_accumulated = 0.0;
       PM25_samples = 0.0;
       dBAmax = 0.0;
     }
@@ -3395,6 +3407,8 @@ void Send_Message_Cloud_App_MQTT()
   float pm25f;
   float pm25fori;
   float pm1f;
+  float pm4f;
+  float pm10f;
 #else
   float pm251f;
   float pm252f;
@@ -3426,6 +3440,10 @@ void Send_Message_Cloud_App_MQTT()
   pm25intori = round(pm25fori);
   pm1f = PM1_accumulated / PM25_samples;
   pm1int = round(pm1f);
+  pm4f = PM4_accumulated / PM25_samples;
+  pm4int = round(pm4f);
+  pm10f = PM10_accumulated / PM25_samples;
+  pm10int = round(pm10f);
 #elif Incli
 #if ADXL
 // PM251_value = ax
@@ -3588,18 +3606,18 @@ void Send_Message_Cloud_App_MQTT()
     if (ResetFlagMobDataTemp == true)
     {
       byte temp1 = 1;
-      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, PM4: %d, PM10: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, pm4int, pm10int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
       ResetFlagMobDataTemp = false;
     }
     else
     {
       byte temp1 = 0;
-      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
+      snprintf(MQTT_message, 512, "{id: %s, PM25: %d, PM25raw: %d, PM1: %d, PM4: %d, PM10: %d, humidity: %d, temperature: %d, RSSI: %d, latitude: %f, longitude: %f, inout: %d, configval: %d, datavar1: %d, datavar2: %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, pm4int, pm10int, humi, temp, RSSI, latitudef, longitudef, inout, IDn, chipId, temp1);
     }
 
 #else
 #if !(LTR390UV || Rain || Incli || Nivel)
-    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
+    snprintf(MQTT_message, 512, "{\"id\": \"%s\", \"PM25\": %d, \"PM25raw\": %d, \"PM1\": %d, \"PM4\": %d, \"PM10\": %d, \"humidity\": %d, \"temperature\": %d, \"RSSI\": %d, \"latitude\": %f, \"longitude\": %f, \"inout\": %d, \"configval\": %d}", aireciudadano_device_id.c_str(), pm25int, pm25intori, pm1int, pm4int, pm10int, humi, temp, RSSI, latitudef, longitudef, inout, IDn); // for Telegraf
 #elif LTR390V
     // inout = 2;
     // pm25int: LTR390 value
@@ -5047,6 +5065,8 @@ void Read_Sensor()
     PM25_valueold = PM25_value;
     PM25_value = val.MassPM2;
     PM1_value = val.MassPM1;
+    PM4_value = val.MassPM4;
+    PM10_value = val.MassPM10;
 
     if (!err_sensor)
     {
