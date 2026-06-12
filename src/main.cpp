@@ -100,8 +100,8 @@
 #define SDS011sen false  // Set to true for SDS011 instead PMSX003
 #define NoxVoxTd false   // Lectura de NoxVox
 // Influxver:
-#define Influxver true   // Set to true for InfluxDB version SP - Rain - Incli - Nivel
-#define SoundMeter true  // set to true for Sound Meter
+#define Influxver false  // Set to true for InfluxDB version SP - Rain - Incli - Nivel
+#define SoundMeter false // set to true for Sound Meter
 #define SoundAM false    // Set to true to Sound meter airplane mode
 #define Rain false       // Lectura de pluviometro
 #define Incli false      // Lectura de inclinometros
@@ -257,21 +257,23 @@ struct MyConfigStruct
   char aireciudadano_device_name[30]; // Device name; default to aireciudadano_device_id
 #elif Wifi
 #if !MobData
-  uint16_t PublicTime = 5; // Publication Time
+  uint16_t PublicTime = 1; // Publication Time
 #else
-  uint16_t PublicTime = 5; // Publication Time
+  uint16_t PublicTime = 2; // Publication Time
 #endif
   //  uint16_t MQTT_port = 80;                           // MQTT port; Default Port on 80
   //  char MQTT_server[30] = "sensor.aireciudadano.com"; // MQTT server url or public IP address.
 #if !PreProgSensor
   char sensor_lat[10] = "0.0"; // Sensor latitude  GPS
   char sensor_lon[10] = "0.0"; // Sensor longitude GPS
-  char ConfigValues[10] = "000100000";
+  // ConfigValues indices: [2]MobData(0-1), [3]Loc(0:Out, 1:In), [4]SD/RTC(0-1), [5]Disp(0:None, 1:TDisp, 2:OLED96, 3:OLED66), [6]HyT(0:None, 1:SHT, 2:AM2320), [7]PM(0:None, 1:SPS30, 2:SEN5X, 3:PMS)
+  char ConfigValues[10] = "000000001";
   char aireciudadano_device_name[30]; // Device name; default to aireciudadano_device_id
 #else
   char sensor_lat[10] = "4.6987";   // Aquí colocar la Latitud del sensor
   char sensor_lon[10] = "-74.0987"; // Colocar la Longitud del sensor
-  char ConfigValues[10] = "000100000";
+  // ConfigValues indices: [2]MobData(0-1), [3]Loc(0:Out, 1:In), [4]SD/RTC(0-1), [5]Disp(0:None, 1:TDisp, 2:OLED96, 3:OLED66), [6]HyT(0:None, 1:SHT, 2:AM2320), [7]PM(0:None, 1:SPS30, 2:SEN5X, 3:PMS)
+  char ConfigValues[10] = "000000001";
   char aireciudadano_device_name[30] = "AireCiudadano_Test01"; // Nombre de la estacion
 #endif
 #endif
@@ -2900,7 +2902,7 @@ void Start_Captive_Portal()
   WiFiManagerParameter custom_id_name("CustomName", "Set Station Name (25 characters max):", eepromConfig.aireciudadano_device_name, 25);
 #endif
 
-#if !(Rosver || SoundMeter || Minver || MinVerSD || Rain || Incli || Nivel)
+#if !(Rosver || SoundMeter || MinVer || MinVerSD || Rain || Incli || Nivel)
   char Ptime[5];
   itoa(eepromConfig.PublicTime, Ptime, 10);
   WiFiManagerParameter custom_public_time("Ptime", "Set Publication Time in minutes:", Ptime, 4);
@@ -5105,6 +5107,12 @@ void Read_Sensor()
         PM25_value = 0;
       Serial.print(F("Adjust: "));
       Serial.print(PM25_value);
+      Serial.print(F(" ug/m3   PM1: "));
+      Serial.print(PM1_value);
+      Serial.print(F(" ug/m3   PM4: "));
+      Serial.print(PM4_value);
+      Serial.print(F(" ug/m3   PM10: "));
+      Serial.print(PM10_value);
       Serial.println(F(" ug/m3"));
     }
   }
@@ -7247,7 +7255,7 @@ void Aireciudadano_Characteristics()
     IDn = IDn + 128;
   if (TDisplay)
     IDn = IDn + 256;
-#if Minver
+#if MinVer
     IDn = IDn + 512;
 #endif
   if (MaxWifiTX)
@@ -7423,7 +7431,7 @@ void Firmware_Update()
   Serial.println("Firmware Nivel - RS485");
   t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WINivel485.bin");
 #endif
-#elif Minver
+#elif MinVer
   Serial.println("Firmware MinVer");
   t_httpUpdate_return ret = httpUpdate.update(UpdateClient, "https://raw.githubusercontent.com/danielbernalb/AireCiudadano/main/bin/WIMV.bin");
 #else
